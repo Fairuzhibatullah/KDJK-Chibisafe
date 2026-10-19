@@ -4,13 +4,13 @@
 
 <h1 align="center">Aplikasi Web Chibisafe</h1>
 <p align="center">
-  <b>Tugas Praktikum Deployment Server — Mata Kuliah Komunikasi Data dan Jaringan Komputer (KDJK)</b>
+  <b>Tugas Praktikum Mata Kuliah Komunikasi Data dan Jaringan Komputer (KDJK)</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Ubuntu">
   <img src="https://img.shields.io/badge/Docker-Engine-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/Docker_Compose-v2-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose">
+  <img src="https://img.shields.io/badge/Docker_Compose-v5.6.0-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose">
   <img src="https://img.shields.io/badge/Caddy-2.x-1F88C0?style=for-the-badge&logo=caddy&logoColor=white" alt="Caddy">
   <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite">
 </p>
@@ -416,21 +416,20 @@ Kredensial bawaan (*default*) instalasi baru Chibisafe:
 - **Username:** `admin`
 - **Password:** `admin`
 
-> [!WARNING]
-> **Segera ganti kata sandi bawaan setelah berhasil login!** Menggunakan kredensial default pada server yang terhubung ke internet sangat berisiko.
-
-**Langkah Mengubah Kata Sandi:**
-1. Masuk menggunakan kredensial default.
-2. Klik avatar profil di sudut kanan atas dashboard.
-3. Pilih menu akun / profil.
-4. Perbarui password dengan kombinasi kata sandi baru yang kuat.
-
 ![Halaman Login Chibisafe](screenshots/04-login-page.png)  
 *Gambar 4. Tampilan halaman login Chibisafe.*
 
 ![Dashboard Utama Chibisafe](screenshots/05-dashboard-utama.png)  
 *Gambar 5. Tampilan dashboard utama setelah berhasil masuk.*
 
+> [!WARNING]
+> **Segera ganti kata sandi bawaan setelah berhasil login!** Menggunakan kredensial default pada server yang terhubung ke internet sangat berisiko.
+
+**Langkah Mengubah Kata Sandi:**
+1. Masuk ke dashboard.
+2. Klik credential di panel kiri dashboard.
+3. Perbarui password dengan kombinasi kata sandi baru yang kuat.
+4. Simpan
 ---
 
 ## Konfigurasi
