@@ -6,7 +6,7 @@
 
 Chibisafe mendukung berbagai jenis file, seperti gambar, video, dokumen, dan berkas lainnya. Pengguna juga dapat mengelompokkan file ke dalam album, membuat tautan berbagi, serta mengelola file melalui dashboard web.
 
-Pada proyek ini, Chibisafe direncanakan untuk dijalankan pada VPS dengan sistem operasi Ubuntu 24.04 LTS menggunakan Docker Compose.
+Pada proyek ini, Chibisafe dijalankan pada VPS dengan sistem operasi Ubuntu 24.04 LTS menggunakan Docker Compose.
 
 ### Teknologi yang Digunakan
 
@@ -25,12 +25,42 @@ Sebelum melakukan instalasi, pastikan tersedia:
 
 - VPS dengan Ubuntu 24.04 LTS.
 - Akses SSH dan hak akses `root` atau pengguna dengan hak `sudo`.
-- Docker Engine.
-- Docker Compose plugin.
+- Docker Engine dan Docker Compose plugin.
 - Koneksi internet untuk mengunduh image Docker.
 - Port TCP `24424` dapat diakses, atau tersedia SSH tunnel untuk pengujian lokal.
 
-### 2. Memeriksa Docker
+### 2. Instalasi Docker
+
+Jika Docker belum terpasang, jalankan perintah berikut untuk memasang Docker Engine dan Docker Compose pada Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+```
+
+Tambahkan repository resmi Docker:
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+Pasang Docker Engine dan plugin Compose:
+
+```bash
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+Referensi lengkap: [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+
+### 3. Memeriksa Docker
 
 Periksa versi Docker:
 
@@ -50,7 +80,17 @@ Pastikan Docker sedang berjalan:
 systemctl status docker
 ```
 
-### 3. Membuat Direktori Instalasi
+Jika Docker belum berjalan, aktifkan dengan:
+
+```bash
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+![Status Layanan Docker](screenshots/01-docker-status.png)  
+*Gambar 1. Memeriksa status dan versi Docker yang berjalan di server.*
+
+### 4. Membuat Direktori Instalasi
 
 Buat direktori khusus untuk Chibisafe:
 
@@ -61,7 +101,17 @@ cd /opt/chibisafe
 
 Direktori ini digunakan untuk menyimpan konfigurasi Docker Compose, konfigurasi Caddy, database, file upload, dan log aplikasi.
 
-### 4. Membuat File Docker Compose
+Struktur direktori yang dibutuhkan:
+
+```
+└── chibisafe
+    ├── docker-compose.yml
+    └── Caddyfile
+```
+
+> **Catatan:** Direktori `database/`, `uploads/`, dan `logs/` akan dibuat secara otomatis oleh Docker saat container pertama kali dijalankan.
+
+### 5. Membuat File Docker Compose
 
 Buat file konfigurasi:
 
@@ -105,7 +155,17 @@ services:
 
 Simpan file dengan `Ctrl + O`, tekan `Enter`, lalu keluar menggunakan `Ctrl + X`.
 
-### 5. Membuat File Caddyfile
+**Penjelasan konfigurasi:**
+
+| Layanan | Image | Fungsi |
+|---|---|---|
+| `chibisafe` | `chibisafe/chibisafe:latest` | Frontend Chibisafe, melayani antarmuka web pada port internal 8001 |
+| `chibisafe_server` | `chibisafe/chibisafe-server:latest` | Backend API Chibisafe pada port internal 8000 |
+| `caddy` | `caddy:2-alpine` | Web server yang menggabungkan frontend dan backend menjadi satu port (24424) |
+
+> **Penting:** Meskipun sudah menggunakan NGINX Proxy Manager atau Caddy pada host, Caddy di dalam Docker Compose ini tetap diperlukan. Jangan mengubah konfigurasi ini kecuali memahami cara kerja routing Chibisafe, karena dapat menyebabkan aplikasi tidak berfungsi.
+
+### 6. Membuat File Caddyfile
 
 Buat file konfigurasi Caddy:
 
@@ -152,7 +212,16 @@ Masukkan konfigurasi berikut:
 
 Simpan file dengan `Ctrl + O`, tekan `Enter`, lalu keluar menggunakan `Ctrl + X`.
 
-### 6. Menjalankan Chibisafe
+**Penjelasan routing Caddy:**
+
+| Pola URL | Tujuan |
+|---|---|
+| File di `/app/uploads` | Disajikan langsung oleh Caddy (file_server) |
+| `/api/*` | Diteruskan ke backend Chibisafe (port 8000) |
+| `/docs*` | Diteruskan ke backend Chibisafe (dokumentasi API) |
+| Semua path lainnya | Diteruskan ke frontend Chibisafe (port 8001) |
+
+### 7. Menjalankan Chibisafe
 
 Pastikan berada di direktori `/opt/chibisafe`, lalu jalankan:
 
@@ -168,13 +237,22 @@ Periksa container yang berjalan:
 docker compose ps
 ```
 
-Periksa log apabila terjadi masalah:
+Pastikan ketiga layanan (`chibisafe`, `chibisafe_server`, `caddy`) memiliki status `Up`. Jika salah satu layanan tidak berjalan, periksa log:
 
 ```bash
 docker compose logs --tail=100
 ```
 
-### 7. Mengakses Aplikasi
+Untuk melihat log layanan tertentu:
+
+```bash
+docker compose logs chibisafe_server --tail=50
+```
+
+![Status Container Docker](screenshots/02-docker-compose-ps.png)  
+*Gambar 2. Status container Chibisafe yang berhasil dijalankan.*
+
+### 8. Mengakses Aplikasi
 
 Jika port dapat diakses dari luar, buka alamat berikut melalui browser:
 
@@ -184,17 +262,21 @@ http://IP-VPS:24424
 
 Ganti `IP-VPS` dengan alamat IP publik server.
 
-Jika port tidak dapat diakses secara langsung, gunakan SSH tunnel dari komputer lokal:
+Jika port tidak dapat diakses secara langsung (misalnya karena firewall VPS), gunakan SSH tunnel dari komputer lokal:
 
 ```bash
-ssh -p 20217 -L 12424:127.0.0.1:24424 root@IP-VPS
+ssh -L 12424:127.0.0.1:24424 root@IP-VPS
 ```
+
+> **Catatan:** Jika server menggunakan port SSH non-standar (bukan 22), tambahkan opsi `-p PORT_SSH`. Contoh: `ssh -p 20217 -L 12424:127.0.0.1:24424 root@IP-VPS`
 
 Setelah terhubung, buka:
 
 ```text
 http://localhost:12424
 ```
+
+### 9. Login Pertama Kali
 
 Pada instalasi baru, kredensial awal Chibisafe adalah:
 
@@ -203,13 +285,35 @@ Pada instalasi baru, kredensial awal Chibisafe adalah:
 
 **Segera ubah kata sandi bawaan setelah login pertama.** Jangan biarkan kredensial default digunakan pada layanan yang dapat diakses publik.
 
+Langkah mengubah kata sandi:
+
+1. Login menggunakan kredensial default.
+2. Klik ikon profil di pojok kanan atas dashboard.
+3. Masuk ke halaman pengaturan akun.
+4. Ubah kata sandi dengan kata sandi baru yang kuat.
+
+![Halaman Login Chibisafe](screenshots/03-login-page.png)  
+*Gambar 3. Tampilan halaman login Chibisafe.*
+
+![Dashboard Utama Chibisafe](screenshots/04-dashboard-utama.png)  
+*Gambar 4. Tampilan dashboard utama setelah berhasil masuk.*
+
 ## Konfigurasi
 
 ### 1. Batas Upload File
 
 Chibisafe menyediakan pengaturan melalui dashboard administrasi untuk mengatur batas ukuran file, ekstensi file yang diizinkan, dan konfigurasi layanan lainnya.
 
-Setelah instalasi berhasil, periksa pengaturan tersebut dan sesuaikan dengan kebutuhan server.
+Setelah login sebagai administrator, buka menu **Settings** pada sidebar untuk mengakses pengaturan berikut:
+
+- **Service name**: Nama layanan yang ditampilkan pada halaman utama.
+- **Maximum file size**: Batas ukuran file maksimum per upload.
+- **Chunk size**: Ukuran potongan file untuk upload berukuran besar.
+- **Allowed file extensions**: Ekstensi file yang diizinkan untuk diunggah.
+- **User registration**: Mengaktifkan atau menonaktifkan pendaftaran pengguna baru.
+
+![Halaman Pengaturan Chibisafe](screenshots/05-settings.png)  
+*Gambar 5. Tampilan halaman pengaturan (Settings) pada dashboard administrator.*
 
 ### 2. Penyimpanan Data
 
@@ -217,7 +321,7 @@ Data persisten disimpan pada direktori berikut:
 
 | Direktori | Fungsi |
 |---|---|
-| `database/` | Data database aplikasi |
+| `database/` | Data database aplikasi (SQLite) |
 | `uploads/` | File yang diunggah pengguna |
 | `logs/` | Log aplikasi |
 
@@ -227,9 +331,9 @@ Direktori tersebut terhubung ke container melalui konfigurasi volume Docker Comp
 
 Beberapa hal yang perlu diperhatikan:
 
-- Ganti kredensial bawaan setelah instalasi.
+- Ganti kredensial bawaan (`admin`/`admin`) segera setelah instalasi.
 - Gunakan HTTPS jika aplikasi akan diakses melalui domain publik.
-- Jangan membuka port internal backend secara langsung ke internet.
+- Jangan membuka port internal backend (8000 dan 8001) secara langsung ke internet.
 - Batasi akses SSH dan gunakan kata sandi yang kuat atau autentikasi kunci SSH.
 - Lakukan backup database dan file upload secara berkala.
 
@@ -255,12 +359,11 @@ Pengaturan pembatasan memori container dapat dipertimbangkan jika diperlukan, te
 
 Chibisafe mendukung beberapa integrasi, antara lain:
 
-- ShareX untuk mengunggah tangkapan layar dari komputer.
-- Ekstensi browser untuk membantu proses upload.
-- API key untuk integrasi dengan aplikasi lain.
-- Aplikasi mobile yang kompatibel dengan instance Chibisafe.
+- **ShareX** untuk mengunggah tangkapan layar dari komputer.
+- **Ekstensi browser** untuk membantu proses upload.
+- **API key** untuk integrasi dengan aplikasi lain.
 
-Ketersediaan dan konfigurasi setiap integrasi perlu disesuaikan dengan versi aplikasi yang digunakan.
+Konfigurasi integrasi dapat diakses melalui dashboard Chibisafe pada menu **Uploaders** setelah login.
 
 ## Maintenance
 
@@ -290,11 +393,12 @@ Tekan `Ctrl + C` untuk berhenti melihat log.
 Periksa pembaruan image resmi, lalu jalankan:
 
 ```bash
+cd /opt/chibisafe
 docker compose pull
 docker compose up -d
 ```
 
-Sebelum melakukan pembaruan, buat backup database dan file upload.
+Sebelum melakukan pembaruan, buat backup database dan file upload terlebih dahulu.
 
 ### 4. Backup Data
 
@@ -316,15 +420,31 @@ cd /opt/chibisafe
 docker compose down
 ```
 
-Perintah ini menghentikan dan menghapus container proyek, tetapi mempertahankan direktori data lokal.
+Perintah ini menghentikan dan menghapus container proyek, tetapi mempertahankan direktori data lokal (`database/`, `uploads/`, `logs/`).
 
-Jangan menggunakan opsi penghapusan volume atau menghapus direktori database dan upload jika data masih diperlukan.
+Jangan menggunakan opsi penghapusan volume (`docker compose down -v`) atau menghapus direktori database dan upload jika data masih diperlukan.
 
 ## Otomatisasi
 
 Untuk memudahkan pemeliharaan, beberapa perintah dapat dijalankan secara berkala menggunakan cron atau systemd timer.
 
-Contoh perintah pembaruan manual:
+### Backup Otomatis dengan Cron
+
+Contoh menjadwalkan backup harian pada pukul 02:00:
+
+```bash
+crontab -e
+```
+
+Tambahkan baris berikut:
+
+```cron
+0 2 * * * cd /opt/chibisafe && tar -czf "/root/chibisafe-backup-$(date +\%F).tar.gz" database uploads
+```
+
+### Pembaruan Manual
+
+Pembaruan otomatis tanpa pemeriksaan tidak disarankan sebelum aplikasi stabil. Sebaiknya lakukan backup dan uji pembaruan terlebih dahulu menggunakan perintah:
 
 ```bash
 cd /opt/chibisafe
@@ -332,64 +452,65 @@ docker compose pull
 docker compose up -d
 ```
 
-Pembaruan otomatis tanpa pemeriksaan tidak disarankan sebelum aplikasi stabil. Sebaiknya lakukan backup dan uji pembaruan terlebih dahulu.
-
-Backup juga dapat dijadwalkan, tetapi jadwal dan lokasi penyimpanannya perlu disesuaikan dengan kapasitas disk serta kebutuhan pengguna.
-
 ## Cara Pemakaian
-
-*Bagian ini dilengkapi setelah aplikasi berhasil dipasang dan diuji.*
 
 ### 1. Login
 
-Buka alamat aplikasi melalui browser, lalu masuk menggunakan akun administrator. Ubah kata sandi awal sebelum menggunakan layanan secara rutin.
+Buka alamat aplikasi melalui browser (`http://IP-VPS:24424` atau `http://localhost:12424` jika menggunakan SSH tunnel), lalu masuk menggunakan akun administrator. Ubah kata sandi awal sebelum menggunakan layanan secara rutin.
 
 ### 2. Mengunggah File
 
-Pilih file yang ingin diunggah melalui antarmuka aplikasi. Setelah upload berhasil, periksa apakah file muncul di halaman pengelolaan file.
+1. Setelah login, klik tombol **Upload** atau seret file ke area upload pada halaman utama.
+2. Pilih satu atau beberapa file yang ingin diunggah.
+3. Tunggu proses upload selesai. File berukuran besar akan secara otomatis diunggah menggunakan mekanisme *chunked upload*.
+4. Setelah upload berhasil, file akan muncul di halaman pengelolaan file.
+
+![Proses Upload File](screenshots/06-upload-file.png)  
+*Gambar 6. Proses upload file ke antarmuka web Chibisafe.*
+
+![Hasil Upload File](screenshots/07-daftar-file.png)  
+*Gambar 7. Tampilan file yang berhasil diunggah dan muncul di daftar file.*
 
 ### 3. Membagikan File
 
-Gunakan tautan yang dihasilkan aplikasi untuk membagikan file kepada pengguna lain. Pastikan pengaturan akses sesuai dengan tujuan berbagi.
+1. Klik pada file yang ingin dibagikan di halaman pengelolaan file.
+2. Salin tautan (*link*) yang dihasilkan aplikasi.
+3. Bagikan tautan tersebut kepada pengguna lain. Pengguna yang memiliki tautan dapat mengunduh file tanpa perlu login.
+
+![Tautan Berbagi File](screenshots/08-share-link.png)  
+*Gambar 8. Mengambil tautan (link) publik untuk membagikan file.*
 
 ### 4. Mengelola Album dan File
 
-Gunakan fitur album untuk mengelompokkan file. Fitur pengelolaan, pencarian, dan penandaan file dapat digunakan untuk mempermudah pengorganisasian data.
+1. Buat album baru melalui menu **Albums** pada sidebar.
+2. Tambahkan file ke album untuk mengelompokkan file berdasarkan kategori.
+3. Gunakan fitur pencarian untuk menemukan file tertentu.
+4. File dapat dihapus melalui halaman pengelolaan file dengan mengklik ikon hapus.
 
-### 5. Screenshot Pengujian
+![Pengelolaan Album](screenshots/09-album.png)  
+*Gambar 9. Tampilan halaman pengelolaan album file.*
 
-Tambahkan screenshot asli setelah pengujian selesai, misalnya:
+### 5. Mengelola Pengguna (Administrator)
 
-- Halaman login.
-- Dashboard utama.
-- Proses upload file.
-- Hasil upload beserta tautan berbagi.
-- Halaman pengaturan administrator.
-- Status container Docker yang berjalan.
+1. Buka menu **Users** pada sidebar (hanya tersedia untuk administrator).
+2. Lihat daftar pengguna yang terdaftar.
+3. Administrator dapat mengelola akun pengguna dan melihat file yang diunggah oleh setiap pengguna.
 
-Contoh format dokumentasi screenshot:
-
-```markdown
-![Dashboard Chibisafe](screenshots/dashboard.png)
-
-Gambar 1. Tampilan dashboard Chibisafe setelah login.
-```
-
-Buat direktori `screenshots/` dan isi dengan tangkapan layar aktual dari aplikasi.
+![Manajemen Pengguna](screenshots/10-users-management.png)  
+*Gambar 10. Halaman manajemen pengguna oleh administrator.*
 
 ## Pembahasan
 
-*Bagian ini merupakan evaluasi awal berdasarkan fitur yang tersedia dan perlu diperbarui setelah pengujian langsung.*
-
 ### Kelebihan
 
-- Dapat di-host pada server sendiri.
-- Mendukung berbagai jenis file.
-- Menyediakan tautan untuk membagikan file.
+- Dapat di-host pada server sendiri sehingga data tetap berada di bawah kontrol pengguna.
+- Mendukung berbagai jenis file tanpa batasan format bawaan.
+- Menyediakan tautan langsung untuk membagikan file dengan mudah.
 - Mendukung album, pengelolaan file, dan pencarian.
-- Mendukung upload berukuran besar melalui mekanisme chunking.
-- Dapat diintegrasikan dengan aplikasi lain melalui API.
-- Menggunakan Docker sehingga proses deployment relatif terstruktur.
+- Mendukung upload berukuran besar melalui mekanisme *chunking*.
+- Dapat diintegrasikan dengan aplikasi lain melalui API dan uploader seperti ShareX.
+- Menggunakan Docker sehingga proses deployment relatif mudah dan konsisten.
+- Antarmuka web yang modern dan responsif.
 
 ### Kekurangan dan Hal yang Perlu Diperhatikan
 
@@ -398,6 +519,7 @@ Buat direktori `screenshots/` dan isi dengan tangkapan layar aktual dari aplikas
 - Kapasitas penyimpanan dibatasi oleh sumber daya VPS.
 - Penggunaan memori dan performa perlu diuji pada server dengan spesifikasi rendah.
 - Akses publik memerlukan perhatian khusus terhadap HTTPS, autentikasi, dan batas upload.
+- Tidak memiliki fitur kolaborasi seperti penyuntingan dokumen secara bersamaan.
 
 ### Perbandingan dengan Aplikasi Sejenis
 
@@ -414,10 +536,8 @@ Pemilihan aplikasi bergantung pada kebutuhan. Chibisafe lebih sesuai apabila tuj
 
 1. Chibisafe. *Official GitHub Repository*. https://github.com/chibisafe/chibisafe
 2. Chibisafe Guides. *Running Chibisafe with Docker*. https://github.com/chibisafe/guides/blob/main/docs/installation/running-with-docker.md
-3. Docker. *Docker Documentation*. https://docs.docker.com/
-4. Ubuntu. *Ubuntu Server Documentation*. https://documentation.ubuntu.com/server/
-5. Caddy. *Caddy Documentation*. https://caddyserver.com/docs/
-
----
-
-**Catatan:** README ini merupakan dokumentasi rencana instalasi. Status keberhasilan instalasi, hasil pengujian, screenshot, serta evaluasi berdasarkan pengalaman penggunaan akan ditambahkan setelah Chibisafe berhasil dijalankan pada VPS.
+3. Chibisafe. *Official Documentation*. https://chibisafe.app/docs/intro
+4. Docker. *Docker Documentation*. https://docs.docker.com/
+5. Docker. *Install Docker Engine on Ubuntu*. https://docs.docker.com/engine/install/ubuntu/
+6. Ubuntu. *Ubuntu Server Documentation*. https://documentation.ubuntu.com/server/
+7. Caddy. *Caddy Documentation*. https://caddyserver.com/docs/
