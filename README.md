@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="234" height="376" src="https://chibisafe.moe/xjoghu.png">
+</p>
+
 # Aplikasi Web Chibisafe
 
 ## Sekilas Tentang
