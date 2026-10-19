@@ -1,12 +1,13 @@
 # Direktori untuk menyimpan screenshot tutorial Chibisafe.
 # Letakkan tangkapan layar (format .png) di sini sesuai nama yang dirujuk pada README.md:
-# - 01-docker-status.png
-# - 02-docker-compose-ps.png
-# - 03-login-page.png
-# - 04-dashboard-utama.png
-# - 05-settings.png
-# - 06-upload-file.png
-# - 07-daftar-file.png
-# - 08-share-link.png
-# - 09-album.png
-# - 10-users-management.png
+# - 01-ssh-connect.png
+# - 02-docker-status.png
+# - 03-docker-compose-ps.png
+# - 04-login-page.png
+# - 05-dashboard-utama.png
+# - 06-settings.png
+# - 07-upload-file.png
+# - 08-daftar-file.png
+# - 09-share-link.png
+# - 10-album.png
+# - 11-users-management.png

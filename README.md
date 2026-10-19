@@ -21,17 +21,62 @@ Pada proyek ini, Chibisafe dijalankan pada VPS dengan sistem operasi Ubuntu 24.0
 
 ### 1. Prasyarat
 
-Sebelum melakukan instalasi, pastikan tersedia:
+Sebelum melakukan instalasi, pastikan data berikut telah tersedia dari penyedia VPS:
 
-- VPS dengan Ubuntu 24.04 LTS.
-- Akses SSH dan hak akses `root` atau pengguna dengan hak `sudo`.
-- Docker Engine dan Docker Compose plugin.
-- Koneksi internet untuk mengunduh image Docker.
+- Alamat IP Publik VPS (contoh: `103.xxx.xxx.xxx`).
+- Username SSH (`root` atau pengguna dengan hak akses `sudo`).
+- Port SSH (standar: `22`, atau port khusus dari penyedia VPS).
+- Password SSH atau berkas SSH Private Key (`.pem` / `.id_rsa`).
 - Port TCP `24424` dapat diakses, atau tersedia SSH tunnel untuk pengujian lokal.
 
-### 2. Instalasi Docker
+### 2. Menghubungkan ke Server VPS (SSH)
 
-Jika Docker belum terpasang, jalankan perintah berikut untuk memasang Docker Engine dan Docker Compose pada Ubuntu:
+Buka aplikasi terminal pada komputer lokal Anda (PowerShell, Command Prompt, Git Bash pada Windows, atau Terminal pada Linux/macOS).
+
+**a. Menghubungkan dengan port standar (22):**
+
+```bash
+ssh root@IP-VPS
+```
+
+> Ganti `root` dengan username Anda (jika bukan root) dan `IP-VPS` dengan alamat IP server Anda.
+
+**b. Menghubungkan dengan port SSH khusus:**
+
+Jika penyedia VPS Anda menggunakan port non-standar (misal port `20217`):
+
+```bash
+ssh -p 20217 root@IP-VPS
+```
+
+**c. Menghubungkan menggunakan berkas SSH Key:**
+
+Jika VPS menggunakan autentikasi key:
+
+```bash
+ssh -i /path/ke/private-key root@IP-VPS
+```
+
+**Proses saat pertama kali terhubung:**
+
+1. Sistem akan menampilkan peringatan verifikasi *host fingerprint*. Ketik `yes` lalu tekan **Enter**:
+   ```text
+   The authenticity of host '103.xxx.xxx.xxx' can't be established.
+   ED25519 key fingerprint is SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.
+   Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+   ```
+2. Masukkan password akun VPS Anda saat diminta (teks password memang tidak akan tampil di layar saat diketik).
+3. Setelah login berhasil, prompt terminal server akan aktif:
+   ```bash
+   root@vps-ubuntu:~#
+   ```
+
+![Koneksi SSH ke VPS](screenshots/01-ssh-connect.png)  
+*Gambar 1. Tampilan saat berhasil terhubung ke server VPS melalui SSH.*
+
+### 3. Instalasi Docker
+
+Setelah terhubung ke terminal VPS, perbarui paket sistem dan pasang dependensi yang diperlukan:
 
 ```bash
 sudo apt update
@@ -60,7 +105,7 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 
 Referensi lengkap: [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 
-### 3. Memeriksa Docker
+### 4. Memeriksa Docker
 
 Periksa versi Docker:
 
@@ -87,10 +132,10 @@ sudo systemctl start docker
 sudo systemctl enable docker
 ```
 
-![Status Layanan Docker](screenshots/01-docker-status.png)  
-*Gambar 1. Memeriksa status dan versi Docker yang berjalan di server.*
+![Status Layanan Docker](screenshots/02-docker-status.png)  
+*Gambar 2. Memeriksa status dan versi Docker yang berjalan di server.*
 
-### 4. Membuat Direktori Instalasi
+### 5. Membuat Direktori Instalasi
 
 Buat direktori khusus untuk Chibisafe:
 
@@ -111,7 +156,7 @@ Struktur direktori yang dibutuhkan:
 
 > **Catatan:** Direktori `database/`, `uploads/`, dan `logs/` akan dibuat secara otomatis oleh Docker saat container pertama kali dijalankan.
 
-### 5. Membuat File Docker Compose
+### 6. Membuat File Docker Compose
 
 Buat file konfigurasi:
 
@@ -165,7 +210,7 @@ Simpan file dengan `Ctrl + O`, tekan `Enter`, lalu keluar menggunakan `Ctrl + X`
 
 > **Penting:** Meskipun sudah menggunakan NGINX Proxy Manager atau Caddy pada host, Caddy di dalam Docker Compose ini tetap diperlukan. Jangan mengubah konfigurasi ini kecuali memahami cara kerja routing Chibisafe, karena dapat menyebabkan aplikasi tidak berfungsi.
 
-### 6. Membuat File Caddyfile
+### 7. Membuat File Caddyfile
 
 Buat file konfigurasi Caddy:
 
@@ -221,7 +266,7 @@ Simpan file dengan `Ctrl + O`, tekan `Enter`, lalu keluar menggunakan `Ctrl + X`
 | `/docs*` | Diteruskan ke backend Chibisafe (dokumentasi API) |
 | Semua path lainnya | Diteruskan ke frontend Chibisafe (port 8001) |
 
-### 7. Menjalankan Chibisafe
+### 8. Menjalankan Chibisafe
 
 Pastikan berada di direktori `/opt/chibisafe`, lalu jalankan:
 
@@ -249,10 +294,10 @@ Untuk melihat log layanan tertentu:
 docker compose logs chibisafe_server --tail=50
 ```
 
-![Status Container Docker](screenshots/02-docker-compose-ps.png)  
-*Gambar 2. Status container Chibisafe yang berhasil dijalankan.*
+![Status Container Docker](screenshots/03-docker-compose-ps.png)  
+*Gambar 3. Status container Chibisafe yang berhasil dijalankan.*
 
-### 8. Mengakses Aplikasi
+### 9. Mengakses Aplikasi
 
 Jika port dapat diakses dari luar, buka alamat berikut melalui browser:
 
@@ -276,7 +321,7 @@ Setelah terhubung, buka:
 http://localhost:12424
 ```
 
-### 9. Login Pertama Kali
+### 10. Login Pertama Kali
 
 Pada instalasi baru, kredensial awal Chibisafe adalah:
 
@@ -292,11 +337,11 @@ Langkah mengubah kata sandi:
 3. Masuk ke halaman pengaturan akun.
 4. Ubah kata sandi dengan kata sandi baru yang kuat.
 
-![Halaman Login Chibisafe](screenshots/03-login-page.png)  
-*Gambar 3. Tampilan halaman login Chibisafe.*
+![Halaman Login Chibisafe](screenshots/04-login-page.png)  
+*Gambar 4. Tampilan halaman login Chibisafe.*
 
-![Dashboard Utama Chibisafe](screenshots/04-dashboard-utama.png)  
-*Gambar 4. Tampilan dashboard utama setelah berhasil masuk.*
+![Dashboard Utama Chibisafe](screenshots/05-dashboard-utama.png)  
+*Gambar 5. Tampilan dashboard utama setelah berhasil masuk.*
 
 ## Konfigurasi
 
@@ -312,8 +357,8 @@ Setelah login sebagai administrator, buka menu **Settings** pada sidebar untuk m
 - **Allowed file extensions**: Ekstensi file yang diizinkan untuk diunggah.
 - **User registration**: Mengaktifkan atau menonaktifkan pendaftaran pengguna baru.
 
-![Halaman Pengaturan Chibisafe](screenshots/05-settings.png)  
-*Gambar 5. Tampilan halaman pengaturan (Settings) pada dashboard administrator.*
+![Halaman Pengaturan Chibisafe](screenshots/06-settings.png)  
+*Gambar 6. Tampilan halaman pengaturan (Settings) pada dashboard administrator.*
 
 ### 2. Penyimpanan Data
 
@@ -465,11 +510,11 @@ Buka alamat aplikasi melalui browser (`http://IP-VPS:24424` atau `http://localho
 3. Tunggu proses upload selesai. File berukuran besar akan secara otomatis diunggah menggunakan mekanisme *chunked upload*.
 4. Setelah upload berhasil, file akan muncul di halaman pengelolaan file.
 
-![Proses Upload File](screenshots/06-upload-file.png)  
-*Gambar 6. Proses upload file ke antarmuka web Chibisafe.*
+![Proses Upload File](screenshots/07-upload-file.png)  
+*Gambar 7. Proses upload file ke antarmuka web Chibisafe.*
 
-![Hasil Upload File](screenshots/07-daftar-file.png)  
-*Gambar 7. Tampilan file yang berhasil diunggah dan muncul di daftar file.*
+![Hasil Upload File](screenshots/08-daftar-file.png)  
+*Gambar 8. Tampilan file yang berhasil diunggah dan muncul di daftar file.*
 
 ### 3. Membagikan File
 
@@ -477,8 +522,8 @@ Buka alamat aplikasi melalui browser (`http://IP-VPS:24424` atau `http://localho
 2. Salin tautan (*link*) yang dihasilkan aplikasi.
 3. Bagikan tautan tersebut kepada pengguna lain. Pengguna yang memiliki tautan dapat mengunduh file tanpa perlu login.
 
-![Tautan Berbagi File](screenshots/08-share-link.png)  
-*Gambar 8. Mengambil tautan (link) publik untuk membagikan file.*
+![Tautan Berbagi File](screenshots/09-share-link.png)  
+*Gambar 9. Mengambil tautan (link) publik untuk membagikan file.*
 
 ### 4. Mengelola Album dan File
 
@@ -487,8 +532,8 @@ Buka alamat aplikasi melalui browser (`http://IP-VPS:24424` atau `http://localho
 3. Gunakan fitur pencarian untuk menemukan file tertentu.
 4. File dapat dihapus melalui halaman pengelolaan file dengan mengklik ikon hapus.
 
-![Pengelolaan Album](screenshots/09-album.png)  
-*Gambar 9. Tampilan halaman pengelolaan album file.*
+![Pengelolaan Album](screenshots/10-album.png)  
+*Gambar 10. Tampilan halaman pengelolaan album file.*
 
 ### 5. Mengelola Pengguna (Administrator)
 
@@ -496,8 +541,8 @@ Buka alamat aplikasi melalui browser (`http://IP-VPS:24424` atau `http://localho
 2. Lihat daftar pengguna yang terdaftar.
 3. Administrator dapat mengelola akun pengguna dan melihat file yang diunggah oleh setiap pengguna.
 
-![Manajemen Pengguna](screenshots/10-users-management.png)  
-*Gambar 10. Halaman manajemen pengguna oleh administrator.*
+![Manajemen Pengguna](screenshots/11-users-management.png)  
+*Gambar 11. Halaman manajemen pengguna oleh administrator.*
 
 ## Pembahasan
 
