@@ -44,8 +44,9 @@ Proyek ini disusun untuk memenuhi tugas mata kuliah **Komunikasi Data dan Jaring
   - [6. Membuat File Docker Compose](#6-membuat-file-docker-compose)
   - [7. Membuat File Caddyfile](#7-membuat-file-caddyfile)
   - [8. Menjalankan Chibisafe](#8-menjalankan-chibisafe)
-  - [9. Mengakses Aplikasi](#9-mengakses-aplikasi)
-  - [10. Login Pertama Kali](#10-login-pertama-kali)
+  - [9. Metode Akses dan Arsitektur Jaringan](#9-metode-akses-dan-arsitektur-jaringan)
+  - [10. Mengakses Aplikasi](#10-mengakses-aplikasi)
+  - [11. Login Pertama Kali](#11-login-pertama-kali)
 - [Konfigurasi](#konfigurasi)
   - [1. Batas Upload File](#1-batas-upload-file)
   - [2. Penyimpanan Data](#2-penyimpanan-data)
@@ -94,7 +95,7 @@ Berikut adalah rincian kebutuhan spesifikasi server Virtual Private Server (VPS)
 | **RAM (Memori)** | 1 GB (+ swap) | 2 GB atau lebih | **2 GB RAM** | Container Chibisafe + Caddy membutuhkan ~250–500 MB RAM, sisa dialokasikan untuk OS dan caching I/O. |
 | **Storage (Penyimpanan)** | 10 GB SSD | 25 GB+ SSD / NVMe | **25 GB NVMe** | Menggunakan NVMe SSD untuk kecepatan *chunked upload* berkecepatan tinggi. Sisa kapasitas digunakan untuk media uploads. |
 | **Sistem Operasi** | Ubuntu 20.04+ | Ubuntu 22.04 / 24.04 LTS | **Ubuntu 24.04 LTS (64-bit)** | Kompatibilitas kernel modern untuk Docker Engine. |
-| **Jaringan / Port** | 100 Mbps, IP Publik | 1 Gbps, IP Publik | **1 Gbps Shared, 1x IPv4** | Port terbuka: `22` (SSH), `24424` (Aplikasi Chibisafe). |
+| **Jaringan / Port** | 100 Mbps, IP Publik | 1 Gbps, IP Publik | **1 Gbps Shared, 1x IPv4** | Port terbuka: `22` (SSH administrasi server), `80` (HTTP untuk Domain Proxy). |
 
 > [!NOTE]
 > **Analisis Sumber Daya:** Spesifikasi **1 vCPU, 2 GB RAM, dan 25 GB NVMe** terbukti sangat optimal dan efisien untuk Chibisafe karena aplikasi ini menggunakan SQLite tanpa beban overhead proses database server terpisah (seperti MySQL atau PostgreSQL), serta Caddy yang sangat hemat memori (~20-50 MB).
@@ -105,13 +106,15 @@ Berikut adalah rincian kebutuhan spesifikasi server Virtual Private Server (VPS)
 
 ### 1. Prasyarat
 
-Sebelum melakukan instalasi, pastikan data berikut telah tersedia dari penyedia VPS:
+Sebelum melakukan instalasi, pastikan data dan konfigurasi berikut telah tersedia dari penyedia VPS:
 
-- Alamat IP Publik VPS (contoh: `103.xxx.xxx.xxx`).
+- Alamat IP Publik VPS: (contoh:`103.xxx.xxx.xxx`).
+- Domain / Subdomain: `domainanda.com` (telah diarahkan melalui DNS Record A Cloudflare dengan status *DNS only*).
+- Fitur **Domain Proxy** dari penyedia VPS telah aktif dan meneruskan trafik domain ke port 80 VPS.
 - Username SSH (`root` atau pengguna dengan hak akses `sudo`).
 - Port SSH (standar: `22`, atau port khusus dari penyedia VPS).
 - Password SSH atau berkas SSH Private Key (`.pem` / `.id_rsa`).
-- Port TCP `24424` dapat diakses, atau tersedia SSH tunnel untuk pengujian lokal.
+- Port TCP `80` terbuka pada firewall VPS untuk menerima trafik dari Domain Proxy provider.
 
 ---
 
@@ -286,7 +289,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./uploads:/app/uploads:ro
     ports:
-      - "24424:80"
+      - "80:80"
     environment:
       - BASE_URL=":80"
     restart: unless-stopped
@@ -300,7 +303,13 @@ Simpan file dengan menekan `Ctrl + O`, lalu `Enter`, dan keluar menggunakan `Ctr
 |---|---|---|
 | `chibisafe` | `chibisafe/chibisafe:latest` | Frontend Chibisafe (Next.js) yang melayani antarmuka web di port internal `8001` |
 | `chibisafe_server` | `chibisafe/chibisafe-server:latest` | Backend API Chibisafe (Fastify) di port internal `8000` |
-| `caddy` | `caddy:2-alpine` | Reverse proxy internal yang menyatukan frontend & backend ke port tunggal `24424` |
+| `caddy` | `caddy:2-alpine` | Reverse proxy internal yang menyatukan frontend & backend serta menerima trafik HTTP pada port `80` |
+
+> [!NOTE]
+> **Penjelasan Penyesuaian Port (`80:80`):**  
+> Konfigurasi port mapping Caddy pada dokumentasi chibisafe menggunakan `"24424:80"`, namun saat ini disesuaikan menjadi `"80:80"`. Perubahan ini dilakukan karena penyedia VPS Indonesia menyediakan fitur **Domain Proxy** yang meneruskan trafik HTTP ke VPS melalui port 80. Oleh karena itu, Caddy perlu menerima trafik pada port 80 host agar sesuai dengan mekanisme proxy provider.  
+> 
+> Perlu ditekankan bahwa perubahan ini merupakan bentuk penyesuaian terhadap metode akses Domain Proxy yang dipilih, bukan berarti port `24424` secara teknis salah. Jika menggunakan metode direct port mapping murni tanpa reverse proxy eksternal, port kustom seperti 24424 tetap valid digunakan.
 
 > [!IMPORTANT]
 > Jangan menghapus layanan `caddy` dari `docker-compose.yml` meskipun host sudah menggunakan reverse proxy lain (seperti NGINX Proxy Manager atau Cloudflare), karena Chibisafe memerlukan Caddy bawaan untuk perutean file upload dan API internal.
@@ -319,6 +328,7 @@ Masukkan konfigurasi berikut:
 
 ```caddyfile
 {
+    auto_https off
     servers {
         trusted_proxies static private_ranges
         client_ip_headers X-Forwarded-For X-Real-IP
@@ -363,6 +373,11 @@ Simpan file (`Ctrl + O`, `Enter`, `Ctrl + X`).
 | `/docs*` | Diteruskan ke dokumentasi API backend (port `8000`) |
 | Semua path lainnya | Diteruskan ke frontend Chibisafe (port `8001`) |
 
+**Catatan Konfigurasi Caddy & SSL:**
+- Direktif `auto_https off` diterapkan pada blok opsi global karena enkripsi dan manajemen sertifikat TLS/SSL direncanakan ditangani sepenuhnya di sisi Domain Proxy penyedia VPS Indonesia.
+- Caddy di dalam container bertugas melayani protokol HTTP biasa pada port 80 dan meneruskannya secara internal ke frontend (port 8001) dan backend (port 8000).
+- Dengan arsitektur ini, Caddy tidak perlu menerbitkan sertifikat SSL lokal dan port 443 tidak perlu dibuka pada firewall VPS.
+
 ---
 
 ### 8. Menjalankan Chibisafe
@@ -390,26 +405,75 @@ docker compose logs --tail=100
 
 ---
 
-### 9. Mengakses Aplikasi
+### 9. Metode Akses dan Arsitektur Jaringan
 
-Buka browser di komputer lokal Anda, lalu akses alamat:
+Dalam merancang aksesibilitas aplikasi Chibisafe pada VPS, terdapat dua alternatif metode akses:
+
+#### A. Pilihan Metode Akses
+
+1. **Domain Proxy (Metode yang Dipilih):**
+   - **Nama Domain:** `upload.jawpeeps.my.id`
+   - **Konfigurasi DNS Cloudflare:** Record `A` untuk subdomain `upload` diarahkan langsung ke alamat IP VPS `103.147.32.116` dengan status **DNS only** (proxy Cloudflare dinonaktifkan/abu-abu).
+   - Pengguna dapat mengakses aplikasi secara praktis melalui nama domain resmi tanpa perlu menuliskan nomor port pada URL.
+   - Fitur Domain Proxy dari penyedia VPS Indonesia digunakan untuk menangani lalu lintas domain serta manajemen TLS/SSL sesuai konfigurasi layanan provider.
+   - Proyek ini secara eksplisit memilih Domain Proxy karena menginginkan alamat web yang rapi, profesional, dan mudah diakses, bukan alamat IP dengan nomor port.
+
+2. **Port Forwarding (Alternatif — Tidak Dipilih):**
+   - Aplikasi dapat diakses melalui kombinasi alamat IP publik server dan port publik yang dialokasikan oleh provider, misalnya `http://IP-VPS:PORT`.
+   - Port publik tersebut harus dipetakan oleh provider ke port tujuan layanan di VPS.
+   - Port forwarding tidak secara otomatis menyediakan HTTPS.
+   - Metode ini **tidak dipilih** dalam konfigurasi proyek saat ini.
+
+| Parameter / Aspek | Domain Proxy (Metode Dipilih) | Port Forwarding (Alternatif) |
+|---|---|---|
+| **Alamat Akses** | Nama domain (`upload.jawpeeps.my.id`) | IP Publik + Nomor Port (`http://IP-VPS:PORT`) |
+| **Kemudahan Pengguna** | Sangat mudah diakses, tanpa perlu menghafal port | Sulit diingat karena harus mencantumkan port khusus |
+| **Dukungan SSL / HTTPS** | Ditangani secara terpusat oleh Domain Proxy provider | Memerlukan pengaturan sertifikat manual |
+| **Port pada Sisi VPS** | Port standar HTTP (`80`) | Port tujuan yang dipetakan oleh provider |
+| **Status Penggunaan Proyek** |  **Digunakan** | ❌ **Tidak Digunakan** |
+
+#### B. Alur Arsitektur Koneksi dan SSL
+
+Alur komunikasi data dari peramban pengguna hingga ke kontainer aplikasi adalah sebagai berikut:
 
 ```text
-http://IP-VPS:24424
+Browser Pengguna ──> Domain Proxy VPS Indonesia ──(HTTP Port 80)──> Caddy (Port 80) ──┬──> Backend Chibisafe (:8000)
+                                                                                      └──> Frontend Chibisafe (:8001)
 ```
 
-> [!TIP]
-> **Menggunakan SSH Tunnel (Bila Port 24424 Dibatasi Firewall):**  
-> Jalankan perintah berikut pada terminal komputer lokal:
-> ```bash
-> ssh -L 12424:127.0.0.1:24424 root@IP-VPS
-> ```
-> *(Jika port SSH non-standar, tambahkan parameter `-p PORT`, contoh: `-p 20217`)*.  
-> Setelah terhubung, buka browser pada alamat: `http://localhost:12424`.
+**Penjelasan Arsitektur:**
+- **Terminasi TLS/SSL:** Direncanakan ditangani pada layer Domain Proxy penyedia VPS Indonesia.
+- **Penerusan Trafik ke VPS:** Provider meneruskan trafik yang masuk dari domain ke VPS melalui protokol HTTP pada port 80.
+- **Konfigurasi Caddy:** Berjalan dengan HTTP dan opsi `auto_https off` pada port 80, sesuai dengan arsitektur Domain Proxy yang telah dijelaskan oleh tim support provider. Caddy merutekan trafik ke backend API (port 8000) atau frontend web (port 8001).
+- **Kebutuhan Port 443:** Berdasarkan informasi teknis yang diberikan provider, port 443 **tidak perlu dibuka pada VPS** untuk skema Domain Proxy ini, karena enkripsi SSL berakhir pada proxy provider sebelum diteruskan ke server.
+- **Tidak Memerlukan Certbot:** Tidak perlu menambahkan instruksi Certbot atau meminta Caddy menerbitkan sertifikat sendiri untuk konfigurasi ini, sehingga konfigurasi server tetap bersih dan terhindar dari konflik port.
+
+#### C. Status Implementasi SSL
+
+> **Status SSL:** HTTP sudah berfungsi. HTTPS masih menunggu penerbitan atau aktivasi sertifikat SSL di sisi Domain Proxy penyedia VPS Indonesia. Setelah provider menyelesaikan aktivasi sertifikat, HTTPS perlu diuji kembali.
+
+- **Alamat Akses Saat Ini (Aktif):** `http://upload.jawpeeps.my.id`
+- **Alamat Akses Rencana (Setelah Aktivasi SSL Selesai):** `https://upload.jawpeeps.my.id`
 
 ---
 
-### 10. Login Pertama Kali
+### 10. Mengakses Aplikasi
+
+Setelah seluruh container berjalan aktif dan DNS telah terpropagasi, buka browser di komputer Anda, lalu akses alamat utama:
+
+```text
+http://upload.jawpeeps.my.id
+```
+
+Setelah penyedia VPS Indonesia menyelesaikan proses penerbitan dan aktivasi sertifikat SSL pada Domain Proxy, alamat akses yang dituju beralih ke:
+
+```text
+https://upload.jawpeeps.my.id
+```
+
+---
+
+### 11. Login Pertama Kali
 
 Kredensial bawaan (*default*) instalasi baru Chibisafe:
 
@@ -459,11 +523,14 @@ Data persisten disimpan pada volume lokal server VPS:
 
 ### 3. Keamanan Server
 
-- Ganti kata sandi `admin` segera setelah instalasi.
-- Gunakan sertifikat SSL/HTTPS bila dipasang pada nama domain publik.
-- Jangan membuka port internal `8000` dan `8001` ke internet publik (gunakan expose, bukan ports).
-- Terapkan firewall (UFW) pada VPS: `sudo ufw allow 22` dan `sudo ufw allow 24424`.
-- Lakukan pencadangan (*backup*) secara berkala.
+Beberapa hal yang perlu diperhatikan dalam menjaga keamanan server:
+
+- Ganti kata sandi bawaan (`admin`/`admin`) segera setelah instalasi berhasil.
+- Manajemen enkripsi SSL/HTTPS direncanakan ditangani pada tingkat Domain Proxy penyedia VPS Indonesia; pastikan DNS domain mengarah dengan benar ke server.
+- Jangan membuka port internal backend (`8000` dan `8001`) secara langsung ke internet (hanya diekspos di dalam jaringan Docker).
+- Terapkan firewall (UFW) pada VPS: `sudo ufw allow 22` (akses administrasi SSH) dan `sudo ufw allow 80` (lalu lintas HTTP dari Domain Proxy). Port 443 tidak perlu dibuka di VPS pada skema Domain Proxy ini.
+- Batasi akses SSH dan gunakan kata sandi yang kuat atau autentikasi kunci SSH.
+- Lakukan pencadangan (*backup*) database dan file upload secara berkala.
 
 ### 4. Pengaturan Memori
 
@@ -608,7 +675,7 @@ Tambahkan jadwal backup setiap hari pukul 02.00 pagi:
 
 ### 1. Login
 
-Buka browser dan akses alamat aplikasi (`http://IP-VPS:24424` atau `http://localhost:12424`). Masukkan username dan password akun Anda.
+Buka browser dan akses alamat aplikasi: `http://upload.jawpeeps.my.id` (atau `https://upload.jawpeeps.my.id` setelah aktivasi SSL selesai). Masukkan username dan password akun Anda.
 
 ### 2. Mengunggah File
 
@@ -656,6 +723,7 @@ Buka browser dan akses alamat aplikasi (`http://IP-VPS:24424` atau `http://local
 ### Kelebihan
 
 - **Kontrol Penuh Data**: Seluruh data dan privasi tetap berada di tangan pengelola server tanpa bergantung pada pihak ketiga.
+- **Kemudahan Akses Domain**: Memanfaatkan fitur Domain Proxy dari penyedia VPS Indonesia sehingga aplikasi dapat diakses menggunakan nama domain yang rapi (`upload.jawpeeps.my.id`) tanpa perlu menyertakan port kustom pada URL.
 - **Efisiensi Sumber Daya**: Berjalan lancar pada spesifikasi VPS 1 vCPU dan 2 GB RAM dengan konsumsi sumber daya yang sangat stabil.
 - **Fitur Modern**: Mendukung *chunked upload*, pembuat album, tag pencarian, dan tautan publik langsung.
 - **Ekosistem Docker**: Proses instalasi, backup, restore, dan migrasi server sangat ringkas dan terstandarisasi.
@@ -664,6 +732,7 @@ Buka browser dan akses alamat aplikasi (`http://IP-VPS:24424` atau `http://local
 ### Kekurangan dan Tantangan
 
 - **Tanggung Jawab Pemeliharaan**: Pembaruan sistem operasi, keamanan jaringan firewall, serta backup rutin harus dikelola sendiri secara mandiri.
+- **Ketergantungan Layanan Proxy Provider**: Penanganan sertifikat SSL/HTTPS bergantung pada proses aktivasi di sisi Domain Proxy penyedia VPS Indonesia.
 - **Kapasitas Terbatas**: Batas kuota penyimpanan ditentukan sepenuhnya oleh kapasitas disk VPS (25 GB NVMe).
 - **Ketiadaan Kolaborasi Dokumen**: Bukan merupakan office suite (seperti Google Docs atau Nextcloud Files); tidak mendukung penyuntingan dokumen kolaboratif secara real-time.
 
